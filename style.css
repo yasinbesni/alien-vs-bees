@@ -1,4 +1,10 @@
-    html, body { margin: 0; height: 100%; overflow: hidden; }
+    html, body {
+       margin: 0; 
+       height: 100%; 
+       overflow: hidden; 
+       width: 100%;
+       background-image: url('./background.png');
+      }
 
     #bg-video{
       position: fixed;
