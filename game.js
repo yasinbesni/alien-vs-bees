@@ -161,7 +161,9 @@ const enemyBullets = []; // {el,x,y,vx,vy,w,h}
 
 
 
-
+function isDesktop() {
+  return window.matchMedia("(pointer: fine)").matches; // mouse olan cihazlar
+}
 // -------------------- HELPERS --------------------
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function rand(min, max) { return Math.random() * (max - min) + min; }
@@ -335,12 +337,18 @@ function spawnBeeEnemy() {
   const frameIndex = Math.floor(Math.random() * beeFrames.length);
   img.src = beeFrames[frameIndex];
 
+  // ✅ object'in DIŞINDA hesapla
+  const beeDesktopBoost = isDesktop() ? 2 : 1;
+
   enemies.push({
     type: "bee",
     el, img,
     x: window.innerWidth + w,
     y: rand(20, window.innerHeight - h - 20),
-    vx: -rand(difficulty.enemySpeedMin * 0.45, difficulty.enemySpeedMax * 0.45),
+    vx: -rand(
+      difficulty.enemySpeedMin * 0.45 * beeDesktopBoost,
+      difficulty.enemySpeedMax * 0.45 * beeDesktopBoost
+    ),
     w, h,
     frameIndex,
     frameTimer: 0,
@@ -349,6 +357,7 @@ function spawnBeeEnemy() {
     shootInterval: 0,
   });
 }
+
 
 function spawnPlaneEnemy() {
   const el = document.createElement("div");
