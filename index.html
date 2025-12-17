@@ -2,32 +2,51 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bee Invaders</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Uzaylı VS Arılar</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
+  <audio id="bgm" src="./music.mp3" loop preload="auto"></audio>
 
-  <!-- OYUN KATMANI -->
   <div id="game">
-    <!-- Uzay gemisi -->
-    <div id="ship">
-      <img id="ship-img" src="./alien.png" alt="ship" />
-      <img id="ship-flame" src="./flame1.png" alt="" />
-    </div>
-    <div id="rotateOverlay">
-  <div class="box">
-    <div class="title">Telefonu yatay çevir</div>
-    <div class="desc">Daha rahat oynamak için</div>
-    <button id="tryLock">Yatay moda geç</button>
-  </div>
-</div>
-    <!-- skor -->
+    <!-- HUD -->
     <div id="hud">
       <div>Score: <span id="score">0</span></div>
-      <div class="hint">W/S veya ↑/↓ ile hareket • Space/Click ateş</div>
+      <div>Level: <span id="level">1</span></div>
+      <div>Can: <span id="hp">20</span></div>
+    </div>
+
+    <!-- Pause/Resume -->
+    <button id="pauseBtn">Durdur</button>
+
+    <!-- Center UI (Start / GameOver / LevelUnlock) -->
+    <div id="centerUI" class="overlay">
+      <div class="box">
+        <div id="centerTitle" class="title">Bee Invaders</div>
+        <div id="centerDesc" class="desc">Başlamak için butona bas</div>
+        <button id="startBtn">Oyunu Başlat</button>
+      </div>
+    </div>
+
+    <!-- Rotate lock overlay (mobile portrait -> cannot play) -->
+    <div id="rotateOverlay" class="overlay hidden">
+      <div class="box">
+        <div class="title">Telefonu yatay çevir</div>
+        <div class="desc">Bu oyunda dikey modda oynanamaz</div>
+        <button id="tryLock">Yatay moda geç</button>
+      </div>
+    </div>
+
+    <!-- Ship -->
+    <div id="ship">
+      <img id="ship-img" src="./ship.png" alt="ship" draggable="false" />
+      <img id="ship-flame" src="./ship.png" alt="flame" draggable="false" />
     </div>
   </div>
+  <footer id="footer">
+  © 2025 Yasin Besni – Tüm hakları saklıdır
+</footer>
 
   <script src="./game.js"></script>
 </body>

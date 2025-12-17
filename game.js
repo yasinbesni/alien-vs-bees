@@ -1,68 +1,149 @@
-// ---- AYARLAR ----
-/*  
-{
-  el,           // DOM elementi
-  img,          // <img>
-  x, y,         // konum
-  vx,           // hız
-  frameIndex,   // hangi kanat frame'i
-  frameTimer    // frame değiştirme zamanlayıcısı
+// -------------------- GAME STATE --------------------
+const GAME_STATE = {
+  MENU: "menu",
+  PLAYING: "playing",
+  PAUSED: "paused",
+  GAMEOVER: "gameover",
+  LEVEL_UNLOCK: "level_unlock",
+};
+
+const footer = document.getElementById("footer");
+
+function updateFooterVisibility() {
+  if (!footer) return;
+
+  const show =
+    gameState === GAME_STATE.MENU ||
+    gameState === GAME_STATE.GAMEOVER ||
+    gameState === GAME_STATE.LEVEL_UNLOCK;
+
+  footer.style.display = show ? "block" : "none";
 }
 
-*/
-
-let isGamePausedForOrientation = false;
-let enemySpawnTimer = null;
 
 
-const ENEMY_SPAWN_MS = 650;
-const ENEMY_SPEED_MIN = 2.2;
-const ENEMY_SPEED_MAX = 4.8;
+let gameState = GAME_STATE.MENU;
+let currentLevel = 1;
+let shipHP = 20;
+const SHIP_MAX_HP = 20;
 
-const BULLET_SPEED = 9;
-const FIRE_COOLDOWN_MS = 150;
+const hpEl = document.getElementById("hp");
+function setHpUI(){ if(hpEl) hpEl.textContent = String(shipHP); }
 
-const SHIP_SPEED = 6;          // klavye ile hız
-const SHIP_X = 30;             // sabit X
+// Score thresholds that unlock NEXT level (1->2 at 300, 2->3 at 500, ...)
+const LEVEL_THRESHOLDS = [400, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
+function nextLevelScore() {
+  // For level 1, threshold index 0 => 300. For level 2 => 500, etc.
+  return LEVEL_THRESHOLDS[currentLevel - 1] ?? (900 + (currentLevel - 5) * 200);
+}
+
+// -------------------- DOM --------------------
+const game = document.getElementById("game");
+const bgm = document.getElementById("bgm");
+
+
+const ship = document.getElementById("ship");
+const flame = document.getElementById("ship-flame");
+
+const scoreEl = document.getElementById("score");
+const levelEl = document.getElementById("level");
+
+const pauseBtn = document.getElementById("pauseBtn");
+
+const centerUI = document.getElementById("centerUI");
+const centerTitle = document.getElementById("centerTitle");
+const centerDesc = document.getElementById("centerDesc");
+const startBtn = document.getElementById("startBtn");
+
+const rotateOverlay = document.getElementById("rotateOverlay");
+const tryLockBtn = document.getElementById("tryLock");
+
+// -------------------- ASSETS --------------------
+const beeFrames = ["./bee1.png","./bee2.png","./bee3.png","./bee4.png","./bee5.png","./bee6.png"];
+const planeImgSrc = "./enemyPlane.png";
+const flameFrames = ["./flame1.png","./flame2.png","./flame3.png"]; // same file 3x if you have only one
+
+// -------------------- CONSTANTS --------------------
+const SHIP_X = 30;
 const SHIP_W = 120;
 const SHIP_H = 80;
 
-const beeFrames = [
-  "./bee1.png",
-  "./bee2.png",
-  "./bee3.png",
-  "./bee4.png",
-  "./bee5.png",
-  "./bee6.png",
-];
+const SHIP_SPEED = 6;
 
-// ---- ELEMANLAR ----
-const game = document.getElementById("game");
-const ship = document.getElementById("ship");
-const flame = document.getElementById("ship-flame");
-const scoreEl = document.getElementById("score");
+const BULLET_SPEED = 9;
+const ENEMY_BULLET_SPEED = -5.2;
 
-// ---- DURUM ----
+const FIRE_COOLDOWN_MS = 150;
+
+const BEE_FRAME_INTERVAL = 180;
+
+// Difficulty updated per level
+const difficulty = {
+  enemySpawnMs: 650,
+  enemySpeedMin: 2.2,
+  enemySpeedMax: 4.8,
+};
+let musicUnlocked = false;
+// -------------------- RUNTIME --------------------
 let score = 0;
+
 let lastFireAt = 0;
-let keys = { up: false, down: false };
+let lastT = performance.now();
 
 let shipY = window.innerHeight * 0.4;
+let targetShipY = shipY;
 
-const enemies = []; // { el, x, y, vx, w, h }
-const bullets = []; // { el, x, y, vx, w, h }
+let isFiringHeld = false;
+let isSpaceHeld = false;
+let keys = { up: false, down: false };
 
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
+// Orientation gate
+let isGamePausedForOrientation = false;
+
+// Timers
+let enemySpawnTimer = null;
+
+// Entities
+const enemies = [];      // {type, el, img, x,y,vx,w,h, frameIndex, frameTimer, hp, shootTimer, shootInterval}
+const bullets = [];      // {el,x,y,vx,w,h}
+const enemyBullets = []; // {el,x,y,vx,vy,w,h}
+
+
+async function playMusicFromStart() {
+  if (!bgm) return;
+  try {
+    bgm.muted = false;
+    bgm.volume = 0.35;
+    bgm.currentTime = 0;
+    bgm.load();              // iOS’ta ilk seferi daha stabil yapar
+    await bgm.play();        // gesture içinde çağrılmalı
+    musicUnlocked = true;
+  } catch (e) {
+    // Eğer tarayıcı engellerse, kullanıcı tekrar tıklayınca yine denenecek.
+    console.warn("Music play blocked:", e);
+  }
 }
 
-function rand(min, max) {
-  return Math.random() * (max - min) + min;
+async function resumeMusic() {
+  if (!bgm) return;
+  try {
+    bgm.muted = false;
+    bgm.volume = 0.35;
+    await bgm.play();
+  } catch (e) {}
 }
 
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+function stopMusic() {
+  if (!bgm) return;
+  try {
+    bgm.pause();
+    bgm.currentTime = 0;
+  } catch (e) {}
 }
+
+// -------------------- HELPERS --------------------
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function rand(min, max) { return Math.random() * (max - min) + min; }
 
 function rectsOverlap(a, b) {
   return (
@@ -73,28 +154,153 @@ function rectsOverlap(a, b) {
   );
 }
 
-// ---- UZAY GEMİSİ ÇİZ ----
 function renderShip() {
   ship.style.left = `${SHIP_X}px`;
   ship.style.top = `${shipY}px`;
 }
 
-// ---- ATEŞ (HAREKETTEYKEN) ----
+function setLevelUI() { levelEl.textContent = String(currentLevel); }
+function setScoreUI() { scoreEl.textContent = String(score); }
+
+function showCenterUI(title, desc, btnText = "Oyunu Başlat") {
+  centerTitle.textContent = title;
+  centerDesc.textContent = desc;
+  startBtn.textContent = btnText;
+  centerUI.classList.remove("hidden");
+}
+function hideCenterUI() { centerUI.classList.add("hidden"); }
+
+function startSpawning() {
+  if (enemySpawnTimer) return;
+  enemySpawnTimer = setInterval(() => {
+    if (isGamePausedForOrientation) return;
+    if (gameState !== GAME_STATE.PLAYING) return;
+    spawnEnemyOrPlane();
+  }, difficulty.enemySpawnMs);
+}
+function stopSpawning() {
+  if (!enemySpawnTimer) return;
+  clearInterval(enemySpawnTimer);
+  enemySpawnTimer = null;
+}
+
+function resetRound() {
+  bullets.forEach(b => b.el.remove()); bullets.length = 0;
+  enemyBullets.forEach(b => b.el.remove()); enemyBullets.length = 0;
+  enemies.forEach(e => e.el.remove()); enemies.length = 0;
+
+  shipY = window.innerHeight * 0.4;
+  targetShipY = shipY;
+
+  keys.up = false; keys.down = false;
+  isFiringHeld = false; isSpaceHeld = false;
+
+  lastFireAt = 0;
+
+  shipHP = SHIP_MAX_HP;
+  setHpUI?.();
+  renderShip();
+}
+
+function gameOver(reasonText = "Game Over") {
+  stopMusic();
+  gameState = GAME_STATE.GAMEOVER;
+  stopSpawning();
+  pauseBtn.textContent = "Durdur";
+  showCenterUI("GAME OVER", reasonText, "Yeniden Başlat");
+  updateFooterVisibility();
+}
+
+function unlockNextLevel() {
+  gameState = GAME_STATE.LEVEL_UNLOCK;
+  stopSpawning();
+  currentLevel += 1;
+  setLevelUI();
+  pauseBtn.textContent = "Durdur";
+  showCenterUI(
+    `Tebrikler! ${currentLevel}. seviye kilidi açıldı`,
+    "Devam etmek için Başlat'a bas",
+    `${currentLevel}. Seviyeyi Başlat`
+  );
+  updateFooterVisibility();
+}
+
+function startGameOrLevel() {
+  if (isGamePausedForOrientation) return;
+
+  resetRound();
+
+  // Increase difficulty by level
+  difficulty.enemySpawnMs = Math.max(240, 650 - (currentLevel - 1) * 80);
+  difficulty.enemySpeedMin = 1.2 + (currentLevel - 1) * 0.25;
+  difficulty.enemySpeedMax = 2.2 + (currentLevel - 1) * 0.35;
+
+  stopSpawning();
+  startSpawning();
+
+  gameState = GAME_STATE.PLAYING;
+  pauseBtn.textContent = "Durdur";
+  hideCenterUI();
+  updateFooterVisibility();
+}
+
+function pauseGame() {
+  try { bgm.pause(); } catch(e) {}
+  if (gameState !== GAME_STATE.PLAYING) return;
+  gameState = GAME_STATE.PAUSED;
+  stopSpawning();
+  pauseBtn.textContent = "Devam";
+}
+async function resumeGame() {
+  await resumeMusic();
+  if (gameState !== GAME_STATE.PAUSED) return;
+  gameState = GAME_STATE.PLAYING;
+  startSpawning();
+  pauseBtn.textContent = "Durdur";
+}
+
+// -------------------- FLAME ANIM --------------------
 let flameFrame = 0;
-const flameFrames = ["./flame1.png", "./flame2.png", "./flame3.png"]; // varsa 3 frame
 setInterval(() => {
   flameFrame = (flameFrame + 1) % flameFrames.length;
   flame.src = flameFrames[flameFrame];
 }, 80);
 
-// ---- DÜŞMAN OLUŞTUR ----
-function spawnEnemy() {
+// -------------------- ENEMY LOGIC --------------------
+function maxPlanesForLevel() {
+  if (currentLevel < 2) return 0;      // Level 1: hiç yok
+  return Math.min(currentLevel - 1, 6); // L2:1, L3:2, L4:3... (istersen üst limit değiştir)
+}
+
+function countPlanesOnScreen() {
+  return enemies.reduce((acc, e) => acc + (e.type === "plane" ? 1 : 0), 0);
+}
+
+
+function spawnEnemyOrPlane() {
+  const maxPlanes = maxPlanesForLevel();
+  const planesNow = countPlanesOnScreen();
+
+  // Uçak limiti dolduysa sadece arı
+  if (planesNow >= maxPlanes) {
+    spawnBeeEnemy();
+    return;
+  }
+
+  // Level 1'de zaten 0 olduğu için buraya düşmez.
+  // Level arttıkça uçak gelme olasılığı artsın:
+  const planeChance = Math.min(0.35, 0.10 + (currentLevel - 2) * 0.08); 
+  // L2:10%, L3:18%, L4:26%, L5:34% ...
+
+  const spawnPlane = Math.random() < planeChance;
+  if (spawnPlane) spawnPlaneEnemy();
+  else spawnBeeEnemy();
+}
+
+function spawnBeeEnemy() {
   const el = document.createElement("div");
   el.className = "enemy";
 
- /*  const img = document.createElement("img");
-  img.src = pick(enemiesSprites);
-  img.alt = "bee"; */
   const img = document.createElement("img");
   img.src = beeFrames[0];
   img.alt = "bee";
@@ -102,31 +308,81 @@ function spawnEnemy() {
   el.appendChild(img);
   game.appendChild(el);
 
-  const w = 64;
-  const h = 64;
+  const w = 64, h = 64;
 
- /*  const x = window.innerWidth + w;
-  const y = rand(20, window.innerHeight - h - 20);
-  const vx = -rand(ENEMY_SPEED_MIN, ENEMY_SPEED_MAX); */
+  const frameIndex = Math.floor(Math.random() * beeFrames.length);
+  img.src = beeFrames[frameIndex];
 
-  enemies.push(
-    {
-    el,
-    img,
+  enemies.push({
+    type: "bee",
+    el, img,
     x: window.innerWidth + w,
     y: rand(20, window.innerHeight - h - 20),
-    vx: -rand(2.2, 4.8),
-    w,
-    h,
-    frameIndex: 0,
+    vx: -rand(difficulty.enemySpeedMin, difficulty.enemySpeedMax),
+    w, h,
+    frameIndex,
     frameTimer: 0,
-  }
-  );
+    hp: 1,
+    shootTimer: 0,
+    shootInterval: 0,
+  });
 }
 
-// ---- MERMİ ----
+function spawnPlaneEnemy() {
+  const el = document.createElement("div");
+  el.className = "enemy plane";
+
+  const img = document.createElement("img");
+  img.src = planeImgSrc;
+  img.alt = "enemy plane";
+
+  el.appendChild(img);
+  game.appendChild(el);
+
+  const w = 96, h = 64;
+
+  enemies.push({
+    type: "plane",
+    el, img,
+    x: window.innerWidth + w,
+    y: rand(20, window.innerHeight - h - 20),
+   vx: -rand(
+  difficulty.enemySpeedMin * 0.45,
+  difficulty.enemySpeedMax * 0.45
+),
+    w, h,
+    frameIndex: 0,
+    frameTimer: 0,
+    hp: 5, // 5 bullets to die
+    shootTimer: 0,
+    shootInterval: rand(1400, 1200),
+  });
+}
+
+function spawnEnemyBullet(fromX, fromY, enemyWidth = 96) {
+  const el = document.createElement("div");
+  el.className = "bullet enemy";
+  game.appendChild(el);
+
+  const w = 14, h = 5;
+
+  enemyBullets.push({
+    el,
+    // 👇 uçağın ÖNÜNDEN (sol burun)
+    x: fromX - w,
+    y: fromY - h / 2,
+    vx: ENEMY_BULLET_SPEED,
+    vy: 0,
+    w, h,
+  });
+}
+
+
+// -------------------- PLAYER BULLETS --------------------
 function fireBullet() {
   if (isGamePausedForOrientation) return;
+  if (gameState !== GAME_STATE.PLAYING) return;
+
   const now = performance.now();
   if (now - lastFireAt < FIRE_COOLDOWN_MS) return;
   lastFireAt = now;
@@ -135,247 +391,317 @@ function fireBullet() {
   el.className = "bullet";
   game.appendChild(el);
 
-  const w = 18;
-  const h = 6;
-
-  // mermi geminin ortasından çıksın
+  const w = 18, h = 6;
   const x = SHIP_X + SHIP_W - 10;
   const y = shipY + SHIP_H / 2 - h / 2;
 
   bullets.push({ el, x, y, vx: BULLET_SPEED, w, h });
 }
 
-// ---- INPUT ----
-window.addEventListener("keydown", (e) => {
-  if (e.code === "ArrowUp" || e.code === "KeyW") keys.up = true;
-  if (e.code === "ArrowDown" || e.code === "KeyS") keys.down = true;
-  if (e.code === "Space") {
-    isSpaceHeld = true;
-    fireBullet();
-  }
-});
-
-window.addEventListener("keyup", (e) => {
-  if (e.code === "ArrowUp" || e.code === "KeyW") keys.up = false;
-  if (e.code === "ArrowDown" || e.code === "KeyS") keys.down = false;
-
-  if (e.code === "Space") isSpaceHeld = false;
-});
-
-let isFiringHeld = false;   // mouse / touch basılı mı
-let isSpaceHeld = false;    // space basılı mı
-let targetShipY = shipY;    // parmak/mouse hedefi
-
+// -------------------- INPUT --------------------
 function setTargetFromClientY(clientY) {
   targetShipY = clamp(clientY - SHIP_H / 2, 10, window.innerHeight - SHIP_H - 10);
 }
 
-// Pointer events (tek çözüm: mouse + touch)
 window.addEventListener("pointerdown", (e) => {
-  // portrait'te oynanamasın
   if (isGamePausedForOrientation) return;
-
-  // sadece oyun alanında basıldıysa istersen: (şimdilik tüm ekran)
+  if (gameState !== GAME_STATE.PLAYING) return;
   isFiringHeld = true;
   setTargetFromClientY(e.clientY);
-
-  // mobilde “basınca ateş başlasın” hissi
   fireBullet();
 }, { passive: true });
 
 window.addEventListener("pointermove", (e) => {
   if (isGamePausedForOrientation) return;
+  if (gameState !== GAME_STATE.PLAYING) return;
   setTargetFromClientY(e.clientY);
 }, { passive: true });
 
-window.addEventListener("pointerup", () => {
-  isFiringHeld = false;
-}, { passive: true });
+window.addEventListener("pointerup", () => { isFiringHeld = false; }, { passive: true });
+window.addEventListener("pointercancel", () => { isFiringHeld = false; }, { passive: true });
 
-window.addEventListener("pointercancel", () => {
-  isFiringHeld = false;
-}, { passive: true });
+window.addEventListener("keydown", (e) => {
+  if (e.code === "ArrowUp" || e.code === "KeyW") keys.up = true;
+  if (e.code === "ArrowDown" || e.code === "KeyS") keys.down = true;
 
+  if (e.code === "Space") {
+    isSpaceHeld = true;
+    fireBullet();
+    e.preventDefault();
+  }
+});
+window.addEventListener("keyup", (e) => {
+  if (e.code === "ArrowUp" || e.code === "KeyW") keys.up = false;
+  if (e.code === "ArrowDown" || e.code === "KeyS") keys.down = false;
 
-// ---- OYUN DÖNGÜSÜ ----
-let lastT = performance.now();
+  if (e.code === "Space") {
+    isSpaceHeld = false;
+    e.preventDefault();
+  }
+});
 
-function loop(t) {
-   if (isGamePausedForOrientation) {
-    requestAnimationFrame(loop);
+// -------------------- ORIENTATION GATE --------------------
+function isPortrait() { return window.matchMedia("(orientation: portrait)").matches; }
+
+function pauseGameForOrientation() {
+  isGamePausedForOrientation = true;
+  stopSpawning();
+  rotateOverlay.classList.remove("hidden");
+}
+function resumeGameAfterOrientation() {
+  isGamePausedForOrientation = false;
+  rotateOverlay.classList.add("hidden");
+  // only resume spawning if currently playing
+  if (gameState === GAME_STATE.PLAYING) startSpawning();
+}
+
+function updateOrientationGate() {
+  const isMobile = window.matchMedia("(max-width: 900px)").matches;
+  if (isMobile && isPortrait()) pauseGameForOrientation();
+  else resumeGameAfterOrientation();
+}
+
+async function tryLockLandscape() {
+  try {
+    if (screen.orientation?.lock) await screen.orientation.lock("landscape");
+  } catch (_) {}
+  updateOrientationGate();
+}
+
+tryLockBtn?.addEventListener("click", tryLockLandscape);
+window.addEventListener("resize", updateOrientationGate);
+window.addEventListener("orientationchange", updateOrientationGate);
+
+// -------------------- UI EVENTS --------------------
+pauseBtn.addEventListener("click", () => {
+  if (isGamePausedForOrientation) return;
+  if (gameState === GAME_STATE.PLAYING) pauseGame();
+  else if (gameState === GAME_STATE.PAUSED) resumeGame();
+});
+
+startBtn.addEventListener("click", async () => {
+  if (isGamePausedForOrientation) return;
+  await playMusicFromStart();
+
+  if (gameState === GAME_STATE.MENU) {
+    // new game
+    score = 0;
+    currentLevel = 1;
+    setLevelUI();
+    setScoreUI();
+    startGameOrLevel();
     return;
   }
-  const dt = (t - lastT) / 16.67; // 60fps bazlı
+
+  if (gameState === GAME_STATE.GAMEOVER) {
+    // restart game
+    score = 0;
+    currentLevel = 1;
+    setLevelUI();
+    setScoreUI();
+    try {
+  bgm.volume = 0.35;
+  bgm.play();
+} catch (e) {}
+    startGameOrLevel();
+    return;
+  }
+
+  if (gameState === GAME_STATE.LEVEL_UNLOCK) {
+    // start next level without resetting score
+    startGameOrLevel();
+    return;
+  }
+});
+
+// -------------------- MAIN LOOP --------------------
+function loop(t) {
+  requestAnimationFrame(loop);
+
+  // hard stop if not playing or orientation locked
+  if (isGamePausedForOrientation) return;
+  if (gameState !== GAME_STATE.PLAYING) return;
+
+  const dt = (t - lastT) / 16.67; // 60fps base
   lastT = t;
 
-  // gemi hareket (klavye)
+  // Ship movement (keyboard)
   let moving = false;
+  if (keys.up) { shipY -= SHIP_SPEED * dt; moving = true; }
+  if (keys.down) { shipY += SHIP_SPEED * dt; moving = true; }
 
-  if (keys.up) {
-    shipY -= SHIP_SPEED * dt;
-    moving = true;
-  }
-  if (keys.down) {
-    shipY += SHIP_SPEED * dt;
-    moving = true;
-  }
-
-   // 2) Pointer hedefini takip (mobil + desktop mouse)
-  // yumuşak takip (lerp)
-  const followStrength = 0.25; // 0.15-0.35 arası deneyebilirsin
+  // Ship follows pointer target (mobile + desktop)
+  const followStrength = 0.25;
   const before = shipY;
   shipY = shipY + (targetShipY - shipY) * followStrength;
   if (Math.abs(shipY - before) > 0.2) moving = true;
 
   shipY = clamp(shipY, 10, window.innerHeight - SHIP_H - 10);
 
-   // 3) Sürekli ateş (space basılıysa veya parmak/mouse basılıysa)
-  if (isSpaceHeld || isFiringHeld) {
-    fireBullet(); // cooldown zaten rate limit yapıyor
-  }
+  // auto-fire while held
+  if (isSpaceHeld || isFiringHeld) fireBullet();
 
-  // hareket edince ateş görünsün
+  // flame visual
   flame.style.opacity = moving ? "1" : "0";
   flame.style.transform = moving ? "scale(1.05)" : "scale(0.9)";
 
   renderShip();
-const BEE_FRAME_INTERVAL = 180; // ms
 
-  // düşmanları ilerlet
+  const shipRect = { x: SHIP_X, y: shipY, w: SHIP_W, h: SHIP_H };
+
+  // Enemies update
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.x += e.vx * dt;
 
-     // 🐝 KANAT ANİMASYONU
-  e.frameTimer += dt * 16.67; // gerçek ms'e yaklaştır
-  if (e.frameTimer > BEE_FRAME_INTERVAL) {
-    e.frameIndex = (e.frameIndex + 1) % beeFrames.length;
-    e.img.src = beeFrames[e.frameIndex];
-    e.frameTimer = 0;
+    // Bee wing animation
+    if (e.type === "bee") {
+      e.frameTimer += dt * 16.67;
+      if (e.frameTimer > BEE_FRAME_INTERVAL) {
+        e.frameIndex = (e.frameIndex + 1) % beeFrames.length;
+        e.img.src = beeFrames[e.frameIndex];
+        e.frameTimer = 0;
+      }
+    }
+
+    // Plane shoots
+    if (e.type === "plane") {
+  // Uçak ekrana girmeden ateş etmesin
+  const isOnScreen = e.x <= (window.innerWidth - e.w - 10);
+  if (!isOnScreen) {
+    // ekran dışındayken timer birikmesin (hemen ateş patlamasını da engeller)
+    e.shootTimer = 0;
+  } else {
+    e.shootTimer += dt * 16.67;
+    if (e.shootTimer >= e.shootInterval) {
+      e.shootTimer = 0;
+      e.shootInterval = rand(1400, 2400);
+      spawnEnemyBullet(e.x, e.y + e.h / 2);
+    }
   }
+}
+
 
     e.el.style.transform = `translate(${e.x}px, ${e.y}px)`;
 
-    // ekran dışına çıktıysa sil
-    if (e.x < -e.w - 50) {
+    // GAME OVER: enemy reaches left edge (x<=0)
+    if (e.x <= 0) {
+      gameOver("Düşman hududu geçti!");
+      return;
+    }
+
+    // GAME OVER: enemy collides with ship
+   if (rectsOverlap(shipRect, e)) {
+  // çarpışma daha ağır hasar olsun
+  shipHP -= 5;
+  setHpUI?.();
+
+  // çarpan düşmanı da sil (çarpıp yok olsun)
+  e.el.remove();
+  enemies.splice(i, 1);
+
+  if (shipHP <= 0) gameOver("Düşman gemine çarptı!");
+  return;
+}
+
+
+    // cleanup if far off-screen left
+    if (e.x < -e.w - 80) {
       e.el.remove();
       enemies.splice(i, 1);
     }
   }
 
-  // mermileri ilerlet
+  // Player bullets update
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx * dt;
-
     b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
 
-    if (b.x > window.innerWidth + 50) {
+    if (b.x > window.innerWidth + 80) {
       b.el.remove();
       bullets.splice(i, 1);
     }
   }
 
-  // çarpışma: mermi - düşman
+  // Enemy bullets update + collision
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
+    const b = enemyBullets[i];
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
+
+    if (rectsOverlap(b, shipRect)) {
+  b.el.remove();
+  enemyBullets.splice(i, 1);
+
+  shipHP -= 1;
+  setHpUI?.();
+
+  if (shipHP <= 0) {
+    gameOver("Vurularak Öldürüldün!");
+  }
+  return;
+}
+
+    if (b.x < -80) {
+      b.el.remove();
+      enemyBullets.splice(i, 1);
+    }
+  }
+
+  // Collisions: player bullet -> enemy (HP system)
   for (let bi = bullets.length - 1; bi >= 0; bi--) {
     const b = bullets[bi];
-    let hit = false;
 
     for (let ei = enemies.length - 1; ei >= 0; ei--) {
       const e = enemies[ei];
 
       if (rectsOverlap(b, e)) {
-        // düşmanı öldür
-        e.el.remove();
-        enemies.splice(ei, 1);
-
-        // mermiyi sil
+        // remove bullet
         b.el.remove();
         bullets.splice(bi, 1);
 
-        score += 10;
-        scoreEl.textContent = score;
+        // damage enemy
+        e.hp -= 1;
 
-        hit = true;
+        if (e.hp <= 0) {
+          e.el.remove();
+          enemies.splice(ei, 1);
+
+          score += (e.type === "plane") ? 50 : 10;
+          setScoreUI();
+
+          // Level unlock
+          if (score >= nextLevelScore()) {
+            unlockNextLevel();
+            return;
+          }
+        }
+
         break;
       }
     }
-
-    if (hit) continue;
   }
-
-  requestAnimationFrame(loop);
 }
 
-function startSpawning() {
-  if (enemySpawnTimer) return;
-  enemySpawnTimer = setInterval(() => {
-    if (!isGamePausedForOrientation) spawnEnemy();
-  }, ENEMY_SPAWN_MS);
-}
+// -------------------- INIT --------------------
+setLevelUI();
+setScoreUI();
+renderShip();
+updateOrientationGate();
+// Footer ilk yüklemede doğru görünsün
+updateFooterVisibility();
 
-function stopSpawning() {
-  if (!enemySpawnTimer) return;
-  clearInterval(enemySpawnTimer);
-  enemySpawnTimer = null;
-}
+// Do NOT auto start game.
+showCenterUI("Uzaylı Vs Arılar", "Başlamak için butona bas", "Oyunu Başlat");
 
-startSpawning();
+// Start RAF loop (guarded by state)
 requestAnimationFrame(loop);
 
-
-// resize
+// Resize guard
 window.addEventListener("resize", () => {
   shipY = clamp(shipY, 10, window.innerHeight - SHIP_H - 10);
+  targetShipY = clamp(targetShipY, 10, window.innerHeight - SHIP_H - 10);
+  renderShip();
 });
-//renderShip();
-const rotateOverlay = document.getElementById("rotateOverlay");
-const tryLockBtn = document.getElementById("tryLock");
-
-function isPortrait() {
-  return window.matchMedia("(orientation: portrait)").matches;
-}
-
-function pauseGameForOrientation() {
-  isGamePausedForOrientation = true;
-  stopSpawning();
-  rotateOverlay.style.display = "flex";
-}
-
-function resumeGameAfterOrientation() {
-  isGamePausedForOrientation = false;
-  startSpawning();
-  rotateOverlay.style.display = "none";
-}
-
-function updateOrientationGate() {
-  const isMobile = window.matchMedia("(max-width: 900px)").matches;
-
-  if (isMobile && isPortrait()) {
-    pauseGameForOrientation();
-  } else {
-    resumeGameAfterOrientation();
-  }
-}
-
-
-async function tryLockLandscape() {
-  try {
-    // iOS Safari çoğu zaman desteklemez, Android Chrome genelde destekler
-    if (screen.orientation && screen.orientation.lock) {
-      await screen.orientation.lock("landscape");
-    }
-  } catch (e) {
-    // desteklenmiyorsa sessizce geç
-  } finally {
-    updateOrientationGate();
-  }
-}
-
-tryLockBtn?.addEventListener("click", tryLockLandscape);
-window.addEventListener("resize", updateOrientationGate);
-window.addEventListener("orientationchange", updateOrientationGate);
-updateOrientationGate();
-
-keys.up = false;
-keys.down = false;
