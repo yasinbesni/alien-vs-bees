@@ -338,7 +338,7 @@ function spawnBeeEnemy() {
   img.src = beeFrames[frameIndex];
 
   // ✅ object'in DIŞINDA hesapla
-  const beeDesktopBoost = isDesktop() ? 2 : 1;
+  const beeDesktopBoost = isDesktop() ? 4 : 1;
 
   enemies.push({
     type: "bee",
