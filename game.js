@@ -11,6 +11,8 @@
 
 */
 
+let isGamePausedForOrientation = false;
+let enemySpawnTimer = null;
 
 
 const ENEMY_SPAWN_MS = 650;
@@ -124,6 +126,7 @@ function spawnEnemy() {
 
 // ---- MERMİ ----
 function fireBullet() {
+  if (isGamePausedForOrientation) return;
   const now = performance.now();
   if (now - lastFireAt < FIRE_COOLDOWN_MS) return;
   lastFireAt = now;
@@ -168,6 +171,10 @@ window.addEventListener("mousemove", (e) => {
 let lastT = performance.now();
 
 function loop(t) {
+   if (isGamePausedForOrientation) {
+    requestAnimationFrame(loop);
+    return;
+  }
   const dt = (t - lastT) / 16.67; // 60fps bazlı
   lastT = t;
 
@@ -257,11 +264,75 @@ const BEE_FRAME_INTERVAL = 180; // ms
   requestAnimationFrame(loop);
 }
 
-setInterval(spawnEnemy, ENEMY_SPAWN_MS);
+function startSpawning() {
+  if (enemySpawnTimer) return;
+  enemySpawnTimer = setInterval(() => {
+    if (!isGamePausedForOrientation) spawnEnemy();
+  }, ENEMY_SPAWN_MS);
+}
+
+function stopSpawning() {
+  if (!enemySpawnTimer) return;
+  clearInterval(enemySpawnTimer);
+  enemySpawnTimer = null;
+}
+
+startSpawning();
 requestAnimationFrame(loop);
+
 
 // resize
 window.addEventListener("resize", () => {
   shipY = clamp(shipY, 10, window.innerHeight - SHIP_H - 10);
 });
 //renderShip();
+const rotateOverlay = document.getElementById("rotateOverlay");
+const tryLockBtn = document.getElementById("tryLock");
+
+function isPortrait() {
+  return window.matchMedia("(orientation: portrait)").matches;
+}
+
+function pauseGameForOrientation() {
+  isGamePausedForOrientation = true;
+  stopSpawning();
+  rotateOverlay.style.display = "flex";
+}
+
+function resumeGameAfterOrientation() {
+  isGamePausedForOrientation = false;
+  startSpawning();
+  rotateOverlay.style.display = "none";
+}
+
+function updateOrientationGate() {
+  const isMobile = window.matchMedia("(max-width: 900px)").matches;
+
+  if (isMobile && isPortrait()) {
+    pauseGameForOrientation();
+  } else {
+    resumeGameAfterOrientation();
+  }
+}
+
+
+async function tryLockLandscape() {
+  try {
+    // iOS Safari çoğu zaman desteklemez, Android Chrome genelde destekler
+    if (screen.orientation && screen.orientation.lock) {
+      await screen.orientation.lock("landscape");
+    }
+  } catch (e) {
+    // desteklenmiyorsa sessizce geç
+  } finally {
+    updateOrientationGate();
+  }
+}
+
+tryLockBtn?.addEventListener("click", tryLockLandscape);
+window.addEventListener("resize", updateOrientationGate);
+window.addEventListener("orientationchange", updateOrientationGate);
+updateOrientationGate();
+
+keys.up = false;
+keys.down = false;
