@@ -149,23 +149,53 @@ function fireBullet() {
 window.addEventListener("keydown", (e) => {
   if (e.code === "ArrowUp" || e.code === "KeyW") keys.up = true;
   if (e.code === "ArrowDown" || e.code === "KeyS") keys.down = true;
-  if (e.code === "Space") fireBullet();
+  if (e.code === "Space") {
+    isSpaceHeld = true;
+    fireBullet();
+  }
 });
 
 window.addEventListener("keyup", (e) => {
   if (e.code === "ArrowUp" || e.code === "KeyW") keys.up = false;
   if (e.code === "ArrowDown" || e.code === "KeyS") keys.down = false;
+
+  if (e.code === "Space") isSpaceHeld = false;
 });
 
-// click ile ateş
-window.addEventListener("mousedown", () => fireBullet());
+let isFiringHeld = false;   // mouse / touch basılı mı
+let isSpaceHeld = false;    // space basılı mı
+let targetShipY = shipY;    // parmak/mouse hedefi
 
-// mouse ile sadece Y kontrolü (istersen aç)
-window.addEventListener("mousemove", (e) => {
-  // shipY'yi mouse Y'e yaklaştır (yumuşak)
-  const target = e.clientY - SHIP_H / 2;
-  shipY = clamp(target, 10, window.innerHeight - SHIP_H - 10);
-});
+function setTargetFromClientY(clientY) {
+  targetShipY = clamp(clientY - SHIP_H / 2, 10, window.innerHeight - SHIP_H - 10);
+}
+
+// Pointer events (tek çözüm: mouse + touch)
+window.addEventListener("pointerdown", (e) => {
+  // portrait'te oynanamasın
+  if (isGamePausedForOrientation) return;
+
+  // sadece oyun alanında basıldıysa istersen: (şimdilik tüm ekran)
+  isFiringHeld = true;
+  setTargetFromClientY(e.clientY);
+
+  // mobilde “basınca ateş başlasın” hissi
+  fireBullet();
+}, { passive: true });
+
+window.addEventListener("pointermove", (e) => {
+  if (isGamePausedForOrientation) return;
+  setTargetFromClientY(e.clientY);
+}, { passive: true });
+
+window.addEventListener("pointerup", () => {
+  isFiringHeld = false;
+}, { passive: true });
+
+window.addEventListener("pointercancel", () => {
+  isFiringHeld = false;
+}, { passive: true });
+
 
 // ---- OYUN DÖNGÜSÜ ----
 let lastT = performance.now();
@@ -180,6 +210,7 @@ function loop(t) {
 
   // gemi hareket (klavye)
   let moving = false;
+
   if (keys.up) {
     shipY -= SHIP_SPEED * dt;
     moving = true;
@@ -189,7 +220,19 @@ function loop(t) {
     moving = true;
   }
 
+   // 2) Pointer hedefini takip (mobil + desktop mouse)
+  // yumuşak takip (lerp)
+  const followStrength = 0.25; // 0.15-0.35 arası deneyebilirsin
+  const before = shipY;
+  shipY = shipY + (targetShipY - shipY) * followStrength;
+  if (Math.abs(shipY - before) > 0.2) moving = true;
+
   shipY = clamp(shipY, 10, window.innerHeight - SHIP_H - 10);
+
+   // 3) Sürekli ateş (space basılıysa veya parmak/mouse basılıysa)
+  if (isSpaceHeld || isFiringHeld) {
+    fireBullet(); // cooldown zaten rate limit yapıyor
+  }
 
   // hareket edince ateş görünsün
   flame.style.opacity = moving ? "1" : "0";
