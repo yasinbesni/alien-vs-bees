@@ -164,6 +164,14 @@ const enemyBullets = []; // {el,x,y,vx,vy,w,h}
 function isDesktop() {
   return window.matchMedia("(pointer: fine)").matches; // mouse olan cihazlar
 }
+function levelSpeedBoost() {
+  return 1 + (currentLevel - 1) * 0.15; 
+  // L1: 1.00
+  // L2: 1.15
+  // L3: 1.30
+  // L4: 1.45
+}
+
 // -------------------- HELPERS --------------------
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function rand(min, max) { return Math.random() * (max - min) + min; }
@@ -338,17 +346,19 @@ function spawnBeeEnemy() {
   img.src = beeFrames[frameIndex];
 
   // ✅ object'in DIŞINDA hesapla
-  const beeDesktopBoost = isDesktop() ? 3 : 1;
+  const beeDesktopBoost = isDesktop() ? 2.5 : 1;
+
+  const speedBoost = levelSpeedBoost();
 
   enemies.push({
     type: "bee",
     el, img,
     x: window.innerWidth + w,
     y: rand(20, window.innerHeight - h - 20),
-    vx: -rand(
-      difficulty.enemySpeedMin  * beeDesktopBoost,
-      difficulty.enemySpeedMax  * beeDesktopBoost
-    ),
+    vx: -clampSpeed(rand(
+      difficulty.enemySpeedMin  * beeDesktopBoost * speedBoost,
+      difficulty.enemySpeedMax  * beeDesktopBoost * speedBoost
+    )),
     w, h,
     frameIndex,
     frameTimer: 0,
@@ -358,6 +368,10 @@ function spawnBeeEnemy() {
   });
 }
 
+
+function clampSpeed(v) {
+  return Math.min(v, 6.5); // asla bundan hızlı olmasın
+}
 
 function spawnPlaneEnemy() {
   const el = document.createElement("div");
@@ -371,16 +385,17 @@ function spawnPlaneEnemy() {
   game.appendChild(el);
 
   const w = 96, h = 64;
+  const speedBoost = levelSpeedBoost();
 
   enemies.push({
     type: "plane",
     el, img,
     x: window.innerWidth + w,
     y: rand(20, window.innerHeight - h - 20),
-   vx: -rand(
-  difficulty.enemySpeedMin * 0.45,
-  difficulty.enemySpeedMax * 0.45
-),
+   vx: --clampSpeed(rand(
+  difficulty.enemySpeedMin * 0.35 * speedBoost,
+  difficulty.enemySpeedMax * 0.35 * speedBoost
+)),
     w, h,
     frameIndex: 0,
     frameTimer: 0,
