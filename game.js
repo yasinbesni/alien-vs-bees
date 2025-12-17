@@ -21,6 +21,56 @@ function updateFooterVisibility() {
 }
 
 
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function fadeTo(targetVolume, ms = 500) {
+  if (!bgm) return;
+  const steps = 20;
+  const start = bgm.volume ?? 0.35;
+  const delta = (targetVolume - start) / steps;
+  const stepMs = ms / steps;
+
+  for (let i = 0; i < steps; i++) {
+    bgm.volume = Math.max(0, Math.min(1, start + delta * (i + 1)));
+    await sleep(stepMs);
+  }
+}
+
+async function playMusicFadeIn() {
+  if (!bgm) return;
+  try {
+    bgm.loop = true;
+    bgm.muted = false;
+    bgm.volume = 0;
+    bgm.currentTime = 0;
+    bgm.load();
+    await bgm.play();
+    await fadeTo(0.35, 600); // hedef ses
+  } catch (e) {}
+}
+
+async function resumeMusicFadeIn() {
+  if (!bgm) return;
+  try {
+    bgm.muted = false;
+    if (bgm.paused) await bgm.play();
+    await fadeTo(0.35, 350);
+  } catch (e) {}
+}
+
+async function stopMusicFadeOut() {
+  if (!bgm) return;
+  try {
+    await fadeTo(0, 450);
+    bgm.pause();
+    bgm.currentTime = 0;
+    bgm.volume = 0.35; // sonraki play için reset
+  } catch (e) {}
+}
+
+
 
 let gameState = GAME_STATE.MENU;
 let currentLevel = 1;
@@ -30,12 +80,10 @@ const SHIP_MAX_HP = 20;
 const hpEl = document.getElementById("hp");
 function setHpUI(){ if(hpEl) hpEl.textContent = String(shipHP); }
 
-// Score thresholds that unlock NEXT level (1->2 at 300, 2->3 at 500, ...)
-const LEVEL_THRESHOLDS = [400, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
 function nextLevelScore() {
-  // For level 1, threshold index 0 => 300. For level 2 => 500, etc.
-  return LEVEL_THRESHOLDS[currentLevel - 1] ?? (900 + (currentLevel - 5) * 200);
+  return currentLevel * 400; // 1->400, 2->800, 3->1200 ...
 }
+
 
 // -------------------- DOM --------------------
 const game = document.getElementById("game");
@@ -109,37 +157,10 @@ const bullets = [];      // {el,x,y,vx,w,h}
 const enemyBullets = []; // {el,x,y,vx,vy,w,h}
 
 
-async function playMusicFromStart() {
-  if (!bgm) return;
-  try {
-    bgm.muted = false;
-    bgm.volume = 0.35;
-    bgm.currentTime = 0;
-    bgm.load();              // iOS’ta ilk seferi daha stabil yapar
-    await bgm.play();        // gesture içinde çağrılmalı
-    musicUnlocked = true;
-  } catch (e) {
-    // Eğer tarayıcı engellerse, kullanıcı tekrar tıklayınca yine denenecek.
-    console.warn("Music play blocked:", e);
-  }
-}
 
-async function resumeMusic() {
-  if (!bgm) return;
-  try {
-    bgm.muted = false;
-    bgm.volume = 0.35;
-    await bgm.play();
-  } catch (e) {}
-}
 
-function stopMusic() {
-  if (!bgm) return;
-  try {
-    bgm.pause();
-    bgm.currentTime = 0;
-  } catch (e) {}
-}
+
+
 
 // -------------------- HELPERS --------------------
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -203,7 +224,7 @@ function resetRound() {
 }
 
 function gameOver(reasonText = "Game Over") {
-  stopMusic();
+  stopMusicFadeOut();
   gameState = GAME_STATE.GAMEOVER;
   stopSpawning();
   pauseBtn.textContent = "Durdur";
@@ -212,6 +233,7 @@ function gameOver(reasonText = "Game Over") {
 }
 
 function unlockNextLevel() {
+  stopMusicFadeOut();
   gameState = GAME_STATE.LEVEL_UNLOCK;
   stopSpawning();
   currentLevel += 1;
@@ -245,15 +267,15 @@ function startGameOrLevel() {
 }
 
 function pauseGame() {
-  try { bgm.pause(); } catch(e) {}
   if (gameState !== GAME_STATE.PLAYING) return;
+  stopMusicFadeOut();
   gameState = GAME_STATE.PAUSED;
   stopSpawning();
   pauseBtn.textContent = "Devam";
 }
 async function resumeGame() {
-  await resumeMusic();
   if (gameState !== GAME_STATE.PAUSED) return;
+   await resumeMusicFadeIn();
   gameState = GAME_STATE.PLAYING;
   startSpawning();
   pauseBtn.textContent = "Durdur";
@@ -318,7 +340,7 @@ function spawnBeeEnemy() {
     el, img,
     x: window.innerWidth + w,
     y: rand(20, window.innerHeight - h - 20),
-    vx: -rand(difficulty.enemySpeedMin, difficulty.enemySpeedMax),
+    vx: -rand(difficulty.enemySpeedMin * 0.45, difficulty.enemySpeedMax * 0.45),
     w, h,
     frameIndex,
     frameTimer: 0,
@@ -355,7 +377,7 @@ function spawnPlaneEnemy() {
     frameTimer: 0,
     hp: 5, // 5 bullets to die
     shootTimer: 0,
-    shootInterval: rand(1400, 1200),
+    shootInterval: rand(1400, 2400),
   });
 }
 
@@ -473,18 +495,20 @@ window.addEventListener("resize", updateOrientationGate);
 window.addEventListener("orientationchange", updateOrientationGate);
 
 // -------------------- UI EVENTS --------------------
-pauseBtn.addEventListener("click", () => {
+pauseBtn.addEventListener("click", async () => {
   if (isGamePausedForOrientation) return;
   if (gameState === GAME_STATE.PLAYING) pauseGame();
-  else if (gameState === GAME_STATE.PAUSED) resumeGame();
+  else if (gameState === GAME_STATE.PAUSED) await resumeGame();
 });
+
 
 startBtn.addEventListener("click", async () => {
   if (isGamePausedForOrientation) return;
-  await playMusicFromStart();
+
+  // Müzik sadece oyuna girerken başlasın (MENU / GAMEOVER / LEVEL_UNLOCK)
+  await playMusicFadeIn();
 
   if (gameState === GAME_STATE.MENU) {
-    // new game
     score = 0;
     currentLevel = 1;
     setLevelUI();
@@ -494,25 +518,21 @@ startBtn.addEventListener("click", async () => {
   }
 
   if (gameState === GAME_STATE.GAMEOVER) {
-    // restart game
     score = 0;
     currentLevel = 1;
     setLevelUI();
     setScoreUI();
-    try {
-  bgm.volume = 0.35;
-  bgm.play();
-} catch (e) {}
     startGameOrLevel();
     return;
   }
 
   if (gameState === GAME_STATE.LEVEL_UNLOCK) {
-    // start next level without resetting score
+    // Skoru sıfırlamadan sonraki level başlasın
     startGameOrLevel();
     return;
   }
 });
+
 
 // -------------------- MAIN LOOP --------------------
 function loop(t) {
@@ -576,7 +596,7 @@ function loop(t) {
     if (e.shootTimer >= e.shootInterval) {
       e.shootTimer = 0;
       e.shootInterval = rand(1400, 2400);
-      spawnEnemyBullet(e.x, e.y + e.h / 2);
+      spawnEnemyBullet(e.x, e.y + e.h / 2, e.w);
     }
   }
 }
