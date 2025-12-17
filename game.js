@@ -630,9 +630,10 @@ function loop(t) {
 
     // GAME OVER: enemy reaches left edge (x<=0)
     if (e.x <= 0) {
-      gameOver("Düşman hududu geçti!");
-      return;
-    }
+  gameOver(e.type === "plane" ? "Düşman uçak hududu geçti!" : "Arı hududu geçti!");
+  return;
+}
+
 
     // GAME OVER: enemy collides with ship
    if (rectsOverlap(shipRect, e)) {
