@@ -184,6 +184,16 @@ function rectsOverlap(a, b) {
     a.y + a.h > b.y
   );
 }
+    //çarpışma belirginliği için içe 3-4px inset
+function insetRect(rect, inset = 4) {
+  return {
+    x: rect.x + inset,
+    y: rect.y + inset,
+    w: rect.w - inset * 2,
+    h: rect.h - inset * 2,
+  };
+}
+
 
 function renderShip() {
   ship.style.left = `${SHIP_X}px`;
@@ -332,6 +342,7 @@ function spawnEnemyOrPlane() {
 function spawnBeeEnemy() {
   const el = document.createElement("div");
   el.className = "enemy";
+  el.classList.add("fade-in");
 
   const img = document.createElement("img");
   img.src = beeFrames[0];
@@ -366,6 +377,8 @@ function spawnBeeEnemy() {
     shootTimer: 0,
     shootInterval: 0,
   });
+  const e = enemies[enemies.length - 1];
+e.el.style.transform = `translate(${e.x}px, ${e.y}px)`;
 }
 
 
@@ -373,9 +386,27 @@ function clampSpeed(v) {
   return Math.min(v, 6.5); // asla bundan hızlı olmasın
 }
 
+function removeEnemyWithFade(enemy) {
+  if (!enemy || enemy._removing) return; // 2 kere silmeyi engelle
+  enemy._removing = true;
+
+  enemy.el.classList.remove("fade-in");
+  enemy.el.classList.add("fade-out");
+
+  setTimeout(() => {
+    enemy.el?.remove();
+
+    const idx = enemies.indexOf(enemy);
+    if (idx !== -1) enemies.splice(idx, 1);
+  }, 300);
+}
+
+
+
 function spawnPlaneEnemy() {
   const el = document.createElement("div");
   el.className = "enemy plane";
+  el.classList.add("fade-in");
 
   const img = document.createElement("img");
   img.src = planeImgSrc;
@@ -597,7 +628,10 @@ function loop(t) {
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.x += e.vx * dt;
-
+    if (!Number.isFinite(e.x) || !Number.isFinite(e.vx)) {
+  removeEnemyWithFade(e);
+  continue;
+}
     // Bee wing animation
     if (e.type === "bee") {
       e.frameTimer += dt * 16.67;
@@ -630,20 +664,22 @@ function loop(t) {
 
     // GAME OVER: enemy reaches left edge (x<=0)
     if (e.x <= 0) {
-  gameOver(e.type === "plane" ? "Arı uçağı hududu geçti!" : "Arı hududu geçti!");
-  return;
-}
+      removeEnemyWithFade(e);
+     gameOver(e.type === "plane" ? "Arı uçağı hududu geçti!" : "Arı hududu geçti!");
+    return;
+  }
 
 
     // GAME OVER: enemy collides with ship
-   if (rectsOverlap(shipRect, e)) {
+    const shipHit = insetRect(shipRect, 4);
+    const enemyHit = insetRect(e, 4);
+   if (rectsOverlap(shipHit, enemyHit)) {
   // çarpışma daha ağır hasar olsun
-  shipHP -= 5;
+  shipHP -= 20;
   setHpUI?.();
 
-  // çarpan düşmanı da sil (çarpıp yok olsun)
-  e.el.remove();
-  enemies.splice(i, 1);
+  // çarpıp yok olyrken fade efekti
+  removeEnemyWithFade(e);
 
   if (shipHP <= 0) gameOver("Düşman gemine çarptı!");
   return;
@@ -651,10 +687,12 @@ function loop(t) {
 
 
     // cleanup if far off-screen left
-    if (e.x < -e.w - 80) {
-      e.el.remove();
-      enemies.splice(i, 1);
-    }
+   if (e.x < -e.w - 80) {
+  e.el.remove();
+  const idx = enemies.indexOf(e);
+  if (idx !== -1) enemies.splice(idx, 1);
+  continue;
+}
   }
 
   // Player bullets update
@@ -675,8 +713,10 @@ function loop(t) {
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
-
-    if (rectsOverlap(b, shipRect)) {
+    // COLLISION: enemy bullet -> ship
+    const shipHit = insetRect(shipRect, 4);
+    const bulletHit = insetRect(b, 2); // mermi daha küçük
+    if (rectsOverlap(bulletHit, shipHit)) {
   b.el.remove();
   enemyBullets.splice(i, 1);
 
@@ -702,7 +742,9 @@ function loop(t) {
     for (let ei = enemies.length - 1; ei >= 0; ei--) {
       const e = enemies[ei];
 
-      if (rectsOverlap(b, e)) {
+      const enemyHit = insetRect(e, 3);
+      const bulletHit = insetRect(b, 1);
+      if (rectsOverlap(bulletHit, enemyHit)) {
         // remove bullet
         b.el.remove();
         bullets.splice(bi, 1);
@@ -711,8 +753,7 @@ function loop(t) {
         e.hp -= 1;
 
         if (e.hp <= 0) {
-          e.el.remove();
-          enemies.splice(ei, 1);
+          removeEnemyWithFade(e);
 
           score += (e.type === "plane") ? 50 : 10;
           setScoreUI();

@@ -139,6 +139,20 @@ html, body {
   box-shadow: 0 0 10px rgba(0,0,0,0.6);
   opacity: 1;
 }
+
+.enemy {
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}
+
+.enemy.fade-in {
+  opacity: 1;
+}
+
+.enemy.fade-out {
+  opacity: 0;
+}
+
 #footer {
   position: fixed;
   bottom: 12px;
