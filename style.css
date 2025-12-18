@@ -152,6 +152,34 @@ html, body {
 .enemy.fade-out {
   opacity: 0;
 }
+/* --- EXPLOSION --- */
+.explosion {
+  position: absolute;
+  left: 0; top: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.2);
+  opacity: 0.95;
+  z-index: 9999;
+  background: radial-gradient(circle,
+    rgba(255,255,255,1) 0%,
+    rgba(255,200,0,1) 25%,
+    rgba(255,80,0,1) 55%,
+    rgba(0,0,0,0) 70%
+  );
+  animation: explosionPop 320ms ease-out forwards;
+  filter: blur(0.2px);
+}
+
+@keyframes explosionPop {
+  0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0.95; }
+  60%  { transform: translate(-50%, -50%) scale(1.15); opacity: 0.85; }
+  100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+}
+
+/* Footer */
 
 #footer {
   position: fixed;

@@ -90,6 +90,7 @@ const game = document.getElementById("game");
 const bgm = document.getElementById("bgm");
 
 
+
 const ship = document.getElementById("ship");
 const flame = document.getElementById("ship-flame");
 
@@ -300,6 +301,36 @@ async function resumeGame() {
   startSpawning();
   pauseBtn.textContent = "Durdur";
 }
+function spawnExplosion(x, y, size = 70) {
+  if (!game) return;
+  const ex = document.createElement("div");
+  ex.className = "explosion";
+  ex.style.width = `${size}px`;
+  ex.style.height = `${size}px`;
+  ex.style.left = `${x}px`;
+  ex.style.top = `${y}px`;
+  game.appendChild(ex);
+
+  // animasyon bitince temizle
+  setTimeout(() => ex.remove(), 380);
+}
+
+function centerOfEnemy(e) {
+  return { x: e.x + e.w / 2, y: e.y + e.h / 2 };
+}
+
+const sfxShoot = document.getElementById("sfxShoot");
+
+function playShootSfx() {
+  if (!sfxShoot) return;
+
+  try {
+    const a = sfxShoot.cloneNode(true); // overlap için
+    a.volume = 0.35;
+    a.currentTime = 0;
+    a.play().catch(() => {});
+  } catch (_) {}
+}
 
 // -------------------- FLAME ANIM --------------------
 let flameFrame = 0;
@@ -386,20 +417,25 @@ function clampSpeed(v) {
   return Math.min(v, 6.5); // asla bundan hızlı olmasın
 }
 
-function removeEnemyWithFade(enemy) {
-  if (!enemy || enemy._removing) return; // 2 kere silmeyi engelle
-  enemy._removing = true;
+function removeEnemyWithFade(e) {
+  if (!e || e.isDying) return;     // tekrar tekrar çağrılmasın
+  e.isDying = true;
 
-  enemy.el.classList.remove("fade-in");
-  enemy.el.classList.add("fade-out");
+  // patlama
+  const c = centerOfEnemy(e);
+  spawnExplosion(c.x, c.y, e.type === "plane" ? 110 : 70);
+
+  e.el.classList.remove("fade-in");
+  e.el.classList.add("fade-out");
 
   setTimeout(() => {
-    enemy.el?.remove();
-
-    const idx = enemies.indexOf(enemy);
+    e.el?.remove();
+    const idx = enemies.indexOf(e);
     if (idx !== -1) enemies.splice(idx, 1);
   }, 300);
 }
+
+
 
 
 
@@ -467,6 +503,7 @@ function fireBullet() {
   const el = document.createElement("div");
   el.className = "bullet";
   game.appendChild(el);
+  playShootSfx(); // ✅ mermi sesi
 
   const w = 18, h = 6;
   const x = SHIP_X + SHIP_W - 10;
@@ -562,6 +599,7 @@ startBtn.addEventListener("click", async () => {
 
   // Müzik sadece oyuna girerken başlasın (MENU / GAMEOVER / LEVEL_UNLOCK)
   await playMusicFadeIn();
+  sfxShoot?.load();
 
   if (gameState === GAME_STATE.MENU) {
     score = 0;
@@ -628,10 +666,12 @@ function loop(t) {
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.x += e.vx * dt;
+    if (e.isDying) continue; // fade-out oynarken hareket/çarpışma yapmasın
     if (!Number.isFinite(e.x) || !Number.isFinite(e.vx)) {
-  removeEnemyWithFade(e);
-  continue;
-}
+    removeEnemyWithFade(e);
+    continue;
+  }
+
     // Bee wing animation
     if (e.type === "bee") {
       e.frameTimer += dt * 16.67;
@@ -676,6 +716,8 @@ function loop(t) {
    if (rectsOverlap(shipHit, enemyHit)) {
   // çarpışma daha ağır hasar olsun
   shipHP -= 20;
+  // gemi üstünde küçük patlama
+  spawnExplosion(SHIP_X + SHIP_W * 0.7, shipY + SHIP_H * 0.5, 60);
   setHpUI?.();
 
   // çarpıp yok olyrken fade efekti
