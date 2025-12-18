@@ -346,7 +346,7 @@ function spawnBeeEnemy() {
   img.src = beeFrames[frameIndex];
 
   // ✅ object'in DIŞINDA hesapla
-  const beeDesktopBoost = isDesktop() ? 2.5 : 1;
+  const beeDesktopBoost = isDesktop() ? 2 : 1;
 
   const speedBoost = levelSpeedBoost();
 
@@ -392,9 +392,9 @@ function spawnPlaneEnemy() {
     el, img,
     x: window.innerWidth + w,
     y: rand(20, window.innerHeight - h - 20),
-   vx: --clampSpeed(rand(
-  difficulty.enemySpeedMin * 0.35 * speedBoost,
-  difficulty.enemySpeedMax * 0.35 * speedBoost
+   vx: -clampSpeed(rand(
+  difficulty.enemySpeedMin * 0.30 * speedBoost,
+  difficulty.enemySpeedMax * 0.30 * speedBoost
 )),
     w, h,
     frameIndex: 0,
@@ -630,7 +630,7 @@ function loop(t) {
 
     // GAME OVER: enemy reaches left edge (x<=0)
     if (e.x <= 0) {
-  gameOver(e.type === "plane" ? "Düşman uçak hududu geçti!" : "Arı hududu geçti!");
+  gameOver(e.type === "plane" ? "Arı uçağı hududu geçti!" : "Arı hududu geçti!");
   return;
 }
 
