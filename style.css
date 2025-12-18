@@ -267,6 +267,27 @@ html, body {
 .hit-flash {
   filter: brightness(2);
 }
+.smoke {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  background: radial-gradient(circle, rgba(80,80,80,0.6) 0%, rgba(80,80,80,0.2) 40%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: smokeRise 1.4s ease-out forwards;
+}
+
+@keyframes smokeRise {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-18px, -28px) scale(1.4);
+    opacity: 0;
+  }
+}
+
 
 /* Footer */
 

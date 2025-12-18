@@ -369,6 +369,16 @@ function planeHitFeedback(e) {
     e.el.classList.remove("hit-flash");
   }, 120);
 }
+function spawnSmoke(x, y) {
+  const s = document.createElement("div");
+  s.className = "smoke";
+  s.style.left = `${x}px`;
+  s.style.top = `${y}px`;
+  game.appendChild(s);
+
+  setTimeout(() => s.remove(), 1400);
+}
+
 
 // -------------------- FLAME ANIM --------------------
 let flameFrame = 0;
@@ -509,6 +519,8 @@ function spawnPlaneEnemy() {
     frameIndex: 0,
     frameTimer: 0,
     hp: 5, // 5 bullets to die
+    maxHp: 5,        // 👈 EKLE
+    smokeTimer: 0,   // 👈 EKLE
     shootTimer: 0,
     shootInterval: rand(1400, 2400),
   });
@@ -705,80 +717,64 @@ function loop(t) {
   const shipRect = { x: SHIP_X, y: shipY, w: SHIP_W, h: SHIP_H };
 
   // Enemies update
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    const e = enemies[i];
-    if (e._removing) continue;
-    e.x += e.vx * dt;
-    if (e.isDying) continue; // fade-out oynarken hareket/çarpışma yapmasın
-    if (!Number.isFinite(e.x) || !Number.isFinite(e.vx)) {
-    removeEnemyWithFade(e);
-    continue;
+for (let i = enemies.length - 1; i >= 0; i--) {
+  const e = enemies[i];
+  e.x += e.vx * dt;
+
+  // Bee wing animation
+  if (e.type === "bee") {
+    e.frameTimer += dt * 16.67;
+    if (e.frameTimer > BEE_FRAME_INTERVAL) {
+      e.frameIndex = (e.frameIndex + 1) % beeFrames.length;
+      e.img.src = beeFrames[e.frameIndex];
+      e.frameTimer = 0;
+    }
   }
 
-    // Bee wing animation
-    if (e.type === "bee") {
-      e.frameTimer += dt * 16.67;
-      if (e.frameTimer > BEE_FRAME_INTERVAL) {
-        e.frameIndex = (e.frameIndex + 1) % beeFrames.length;
-        e.img.src = beeFrames[e.frameIndex];
-        e.frameTimer = 0;
+  // Plane shoots
+  if (e.type === "plane") {
+    const isOnScreen = e.x <= (window.innerWidth - e.w - 10);
+    if (!isOnScreen) {
+      e.shootTimer = 0;
+    } else {
+      e.shootTimer += dt * 16.67;
+      if (e.shootTimer >= e.shootInterval) {
+        e.shootTimer = 0;
+        e.shootInterval = rand(1400, 2400);
+        spawnEnemyBullet(e.x, e.y + e.h / 2, e.w);
       }
     }
+  }
 
-    // Plane shoots
-    if (e.type === "plane") {
-  // Uçak ekrana girmeden ateş etmesin
-  const isOnScreen = e.x <= (window.innerWidth - e.w - 10);
-  if (!isOnScreen) {
-    // ekran dışındayken timer birikmesin (hemen ateş patlamasını da engeller)
-    e.shootTimer = 0;
-  } else {
-    e.shootTimer += dt * 16.67;
-    if (e.shootTimer >= e.shootInterval) {
-      e.shootTimer = 0;
-      e.shootInterval = rand(1400, 2400);
-      spawnEnemyBullet(e.x, e.y + e.h / 2, e.w);
+  // ✅✅✅ DUMAN TAM BURAYA
+  if (e.type === "plane") {
+    const hpRatio = e.hp / e.maxHp;
+
+    e.smokeTimer = (e.smokeTimer ?? 0) + dt * 16.67;
+
+    let smokeInterval = null;
+    if (hpRatio <= 0.3) smokeInterval = 180;   // yoğun
+    else if (hpRatio <= 0.6) smokeInterval = 380; // hafif
+
+    if (smokeInterval && e.smokeTimer > smokeInterval) {
+      e.smokeTimer = 0;
+      spawnSmoke(e.x + e.w * 0.7, e.y + e.h * 0.25);
     }
   }
-}
 
+  // düşmanı ekranda çizdir
+  e.el.style.transform = `translate(${e.x}px, ${e.y}px)`;
 
-    e.el.style.transform = `translate(${e.x}px, ${e.y}px)`;
-
-    // GAME OVER: enemy reaches left edge (x<=0)
-    if (e.x <= 0) {
-      removeEnemyWithFade(e);
-     gameOver(e.type === "plane" ? "Arı uçağı hududu geçti!" : "Arı hududu geçti!");
+  // GAME OVER: enemy reaches left edge (x<=0)
+  if (e.x <= 0) {
+    removeEnemyWithFade(e);
+    gameOver(e.type === "plane" ? "Arı uçağı hududu geçti!" : "Arı hududu geçti!");
     return;
   }
 
-
-    // GAME OVER: enemy collides with ship
-    const shipHit = insetRect(shipRect, 4);
-    const enemyHit = insetRect(e, 4);
-   if (rectsOverlap(shipHit, enemyHit)) {
-  // çarpışma daha ağır hasar olsun
-  shipHP -= 20;
-  // gemi üstünde küçük patlama
-  spawnExplosion(SHIP_X + SHIP_W * 0.7, shipY + SHIP_H * 0.5, 60);
-  setHpUI?.();
-
-  // çarpıp yok olyrken fade efekti
-  removeEnemyWithFade(e);
-
-  if (shipHP <= 0) gameOver("Düşman gemine çarptı!");
-  return;
+  // çarpışma vs...
 }
 
-
-    // cleanup if far off-screen left
-   if (e.x < -e.w - 80) {
-  e.el.remove();
-  const idx = enemies.indexOf(e);
-  if (idx !== -1) enemies.splice(idx, 1);
-  continue;
-}
-  }
 
   // Player bullets update
   for (let i = bullets.length - 1; i >= 0; i--) {
