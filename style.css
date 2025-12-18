@@ -238,6 +238,35 @@ html, body {
   50%{ filter: brightness(2.6) contrast(1.2); }
   100%{ filter: brightness(1); }
 }
+.hit-effect {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #ffcc00 40%, transparent 70%);
+  pointer-events: none;
+  animation: hitFlash 0.18s ease-out forwards;
+}
+
+@keyframes hitFlash {
+  0%   { transform: scale(0.4); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.hit-shake {
+  animation: shake 0.12s linear;
+}
+
+@keyframes shake {
+  0%   { transform: translate(var(--x), var(--y)) translateX(0); }
+  25%  { transform: translate(var(--x), var(--y)) translateX(-3px); }
+  50%  { transform: translate(var(--x), var(--y)) translateX(3px); }
+  75%  { transform: translate(var(--x), var(--y)) translateX(-2px); }
+  100% { transform: translate(var(--x), var(--y)) translateX(0); }
+}
+
+.hit-flash {
+  filter: brightness(2);
+}
 
 /* Footer */
 

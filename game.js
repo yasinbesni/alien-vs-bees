@@ -351,6 +351,24 @@ function playShootSfx() {
     a.play().catch(() => {});
   } catch (_) {}
 }
+function spawnHitEffect(x, y) {
+  const hit = document.createElement("div");
+  hit.className = "hit-effect";
+  hit.style.left = `${x}px`;
+  hit.style.top = `${y}px`;
+  game.appendChild(hit);
+
+  setTimeout(() => hit.remove(), 180);
+}
+function planeHitFeedback(e) {
+  e.el.classList.add("hit-shake");
+  e.el.classList.add("hit-flash");
+
+  setTimeout(() => {
+    e.el.classList.remove("hit-shake");
+    e.el.classList.remove("hit-flash");
+  }, 120);
+}
 
 // -------------------- FLAME ANIM --------------------
 let flameFrame = 0;
@@ -818,7 +836,13 @@ function loop(t) {
 
         // damage enemy
         e.hp -= 1;
+        // mermi çarpma noktası
+        const hx = b.x + b.w / 2;
+        const hy = b.y + b.h / 2;
+        spawnHitEffect(hx, hy);
 
+        if (e.type === "plane") planeHitFeedback(e);
+        // SADECE HP BİTİNCE BÜYÜK PATLAMA
         if (e.hp <= 0) {
           removeEnemyWithFade(e);
 
