@@ -370,14 +370,32 @@ function planeHitFeedback(e) {
   }, 120);
 }
 function spawnSmoke(x, y) {
-  const s = document.createElement("div");
-  s.className = "smoke";
-  s.style.left = `${x}px`;
-  s.style.top = `${y}px`;
-  game.appendChild(s);
+  const smoke = document.createElement("div");
+  smoke.className = "smoke";
 
-  setTimeout(() => s.remove(), 1400);
+  const size = rand(18, 32);
+  smoke.style.width = `${size}px`;
+  smoke.style.height = `${size}px`;
+  smoke.style.left = `${x}px`;
+  smoke.style.top = `${y}px`;
+
+  game.appendChild(smoke);
+
+  setTimeout(() => smoke.remove(), 900);
 }
+
+function spawnShipExplosion(x, y, size = 140) {
+  const el = document.createElement("div");
+  el.className = "explosion-plane"; // uçak patlamasıyla aynı görünsün
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  game.appendChild(el);
+  setTimeout(() => el.remove(), 600);
+}
+
+
 
 
 // -------------------- FLAME ANIM --------------------
@@ -458,6 +476,28 @@ function spawnBeeEnemy() {
   });
   const e = enemies[enemies.length - 1];
 e.el.style.transform = `translate(${e.x}px, ${e.y}px)`;
+// ✅ SHIP vs ENEMY COLLISION (3-4px iç içe girince)
+const shipHit = insetRect(shipRect, 4);
+const enemyHit = insetRect(e, 4);
+
+if (rectsOverlap(shipHit, enemyHit)) {
+  // 1) Gemiyi patlat (uçak gibi)
+  spawnShipExplosion(
+    SHIP_X + SHIP_W / 2,
+    shipY + SHIP_H / 2,
+    160
+  );
+
+  // 2) Çarpan düşmanı da patlatıp kaldır
+  removeEnemyWithFade(e);
+
+  // 3) Canı sıfırla ve direkt game over
+  shipHP = 0;
+  setHpUI?.();
+  gameOver(e.type === "plane" ? "Uçakla çarpışarak gemini patlatın!" : "Arıyla çarpışarak gemini palatın!");
+  return;
+}
+
 }
 
 
@@ -752,18 +792,51 @@ for (let i = enemies.length - 1; i >= 0; i--) {
 
     e.smokeTimer = (e.smokeTimer ?? 0) + dt * 16.67;
 
-    let smokeInterval = null;
-    if (hpRatio <= 0.3) smokeInterval = 180;   // yoğun
-    else if (hpRatio <= 0.6) smokeInterval = 380; // hafif
+      let smokeInterval = null;
+      let smokeCount = 1;
 
-    if (smokeInterval && e.smokeTimer > smokeInterval) {
-      e.smokeTimer = 0;
-      spawnSmoke(e.x + e.w * 0.7, e.y + e.h * 0.25);
-    }
+     if (hpRatio <= 0.15) {
+    smokeInterval = 60;   // ÇOK YOĞUN
+    smokeCount = 4;
+  } else if (hpRatio <= 0.35) {
+    smokeInterval = 120;
+    smokeCount = 3;
+  } else if (hpRatio <= 0.6) {
+    smokeInterval = 220;
+    smokeCount = 2;
+  } else if (hpRatio <= 0.8) {
+    smokeInterval = 380;  // ERKEN DUMAN
+    smokeCount = 1;
   }
 
+    if (smokeInterval && e.smokeTimer >= smokeInterval) {
+      e.smokeTimer = 0;
+      for (let s = 0; s < smokeCount; s++){
+      spawnSmoke(
+        e.x + e.w * (0.6 + Math.random() * 0.2),
+        e.y + e.h * (0.2 + Math.random() * 0.4)
+      );
+    }
+  }
+  }
   // düşmanı ekranda çizdir
   e.el.style.transform = `translate(${e.x}px, ${e.y}px)`;
+    // ✅ SHIP vs ENEMY COLLISION (3-4px iç içe girince)
+const shipHit = insetRect({ x: SHIP_X, y: shipY, w: SHIP_W, h: SHIP_H }, 4);
+const enemyHit = insetRect(e, 4);
+
+if (rectsOverlap(shipHit, enemyHit)) {
+  // gemi uçak gibi patlasın
+  spawnPlaneExplosion(SHIP_X + SHIP_W / 2, shipY + SHIP_H / 2, 160);
+
+  // çarpan düşman da patlasın
+  removeEnemyWithFade(e);
+
+  shipHP = 0;
+  setHpUI?.();
+  gameOver(e.type === "plane" ? "Uçakla çarpışarak gemini patlatın!" : "Arıyla çarpışarak gemini patlatın!");
+  return;
+}
 
   // GAME OVER: enemy reaches left edge (x<=0)
   if (e.x <= 0) {
