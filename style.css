@@ -178,6 +178,66 @@ html, body {
   60%  { transform: translate(-50%, -50%) scale(1.15); opacity: 0.85; }
   100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
 }
+/* vurulma kıvılcımı */
+.hit-spark{
+  position:absolute;
+  pointer-events:none;
+  border-radius:999px;
+  background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,200,0,1) 35%, rgba(255,60,0,0) 70%);
+  transform: translate(-50%, -50%) scale(0.6);
+  opacity: 0.9;
+  animation: sparkPop 160ms ease-out forwards;
+}
+
+@keyframes sparkPop{
+  to { transform: translate(-50%, -50%) scale(1.25); opacity:0; }
+}
+
+/* arı patlaması (küçük) */
+.explosion-bee{
+  position:absolute;
+  pointer-events:none;
+  border-radius:999px;
+  background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,180,0,1) 35%, rgba(255,0,0,0) 72%);
+  transform: translate(-50%, -50%) scale(0.5);
+  opacity: 1;
+  animation: boomBee 260ms ease-out forwards;
+}
+
+@keyframes boomBee{
+  to { transform: translate(-50%, -50%) scale(1.6); opacity:0; }
+}
+
+/* uçak patlaması (daha farklı/büyük) */
+.explosion-plane{
+  position:absolute;
+  pointer-events:none;
+  border-radius:999px;
+  background: radial-gradient(circle,
+    rgba(255,255,255,1) 0%,
+    rgba(120,200,255,1) 22%,
+    rgba(255,120,0,1) 45%,
+    rgba(0,0,0,0) 72%);
+  transform: translate(-50%, -50%) scale(0.55);
+  opacity: 1;
+  animation: boomPlane 520ms cubic-bezier(.2,.9,.2,1) forwards;
+  filter: blur(0.2px);
+}
+
+@keyframes boomPlane{
+  60% { opacity:1; transform: translate(-50%, -50%) scale(2.2); }
+  100%{ opacity:0; transform: translate(-50%, -50%) scale(3.2); }
+}
+
+/* uçak vurulunca kısa “flash” */
+.enemy.plane.hit-flash img{
+  animation: hitFlash 120ms ease-out;
+}
+@keyframes hitFlash{
+  0% { filter: brightness(1); }
+  50%{ filter: brightness(2.6) contrast(1.2); }
+  100%{ filter: brightness(1); }
+}
 
 /* Footer */
 

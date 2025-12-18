@@ -301,19 +301,39 @@ async function resumeGame() {
   startSpawning();
   pauseBtn.textContent = "Durdur";
 }
-function spawnExplosion(x, y, size = 70) {
-  if (!game) return;
-  const ex = document.createElement("div");
-  ex.className = "explosion";
-  ex.style.width = `${size}px`;
-  ex.style.height = `${size}px`;
-  ex.style.left = `${x}px`;
-  ex.style.top = `${y}px`;
-  game.appendChild(ex);
-
-  // animasyon bitince temizle
-  setTimeout(() => ex.remove(), 380);
+function spawnHitSpark(x, y, size = 26) {
+  const el = document.createElement("div");
+  el.className = "hit-spark";
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  game.appendChild(el);
+  setTimeout(() => el.remove(), 200);
 }
+
+function spawnBeeExplosion(x, y, size = 70) {
+  const el = document.createElement("div");
+  el.className = "explosion-bee";
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  game.appendChild(el);
+  setTimeout(() => el.remove(), 320);
+}
+
+function spawnPlaneExplosion(x, y, size = 130) {
+  const el = document.createElement("div");
+  el.className = "explosion-plane";
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  game.appendChild(el);
+  setTimeout(() => el.remove(), 600);
+}
+
 
 function centerOfEnemy(e) {
   return { x: e.x + e.w / 2, y: e.y + e.h / 2 };
@@ -418,22 +438,26 @@ function clampSpeed(v) {
 }
 
 function removeEnemyWithFade(e) {
-  if (!e || e.isDying) return;     // tekrar tekrar çağrılmasın
-  e.isDying = true;
+  if (e._removing) return; // çift çağrıyı engelle
+  e._removing = true;
 
-  // patlama
-  const c = centerOfEnemy(e);
-  spawnExplosion(c.x, c.y, e.type === "plane" ? 110 : 70);
+  const cx = e.x + e.w / 2;
+  const cy = e.y + e.h / 2;
+
+  if (e.type === "plane") spawnPlaneExplosion(cx, cy, 140);
+  else spawnBeeExplosion(cx, cy, 80);
 
   e.el.classList.remove("fade-in");
   e.el.classList.add("fade-out");
 
   setTimeout(() => {
-    e.el?.remove();
+    e.el.remove();
+
     const idx = enemies.indexOf(e);
     if (idx !== -1) enemies.splice(idx, 1);
   }, 300);
 }
+
 
 
 
@@ -665,6 +689,7 @@ function loop(t) {
   // Enemies update
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
+    if (e._removing) continue;
     e.x += e.vx * dt;
     if (e.isDying) continue; // fade-out oynarken hareket/çarpışma yapmasın
     if (!Number.isFinite(e.x) || !Number.isFinite(e.vx)) {
