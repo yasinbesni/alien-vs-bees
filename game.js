@@ -502,6 +502,30 @@ function removeEnemyWithFade(e) {
   }, 300);
 }
 
+function intersectionArea(a, b) {
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w);
+  const y2 = Math.min(a.y + a.h, b.y + b.h);
+
+  const w = x2 - x1;
+  const h = y2 - y1;
+
+  if (w <= 0 || h <= 0) return 0;
+  return w * h;
+}
+
+function overlapRatio(a, b) {
+  const inter = intersectionArea(a, b);
+  if (inter <= 0) return 0;
+
+  const areaA = a.w * a.h;
+  const areaB = b.w * b.h;
+
+  // küçük olana göre oran (daha mantıklı)
+  const denom = Math.min(areaA, areaB);
+  return inter / denom;
+}
 
 
 
@@ -807,7 +831,10 @@ for (let i = enemies.length - 1; i >= 0; i--) {
 const shipHit = insetRect({ x: SHIP_X, y: shipY, w: SHIP_W, h: SHIP_H }, 4);
 const enemyHit = insetRect(e, 4);
 
-if (rectsOverlap(shipHit, enemyHit)) {
+const hitRatio = overlapRatio(shipHit, enemyHit);
+
+// %50 overlap olmadan çarpışma sayma
+if (hitRatio >= 0.5) {
   // gemi uçak gibi patlasın
   spawnPlaneExplosion(SHIP_X + SHIP_W / 2, shipY + SHIP_H / 2, 160);
 
@@ -816,9 +843,13 @@ if (rectsOverlap(shipHit, enemyHit)) {
 
   shipHP = 0;
   setHpUI?.();
-  gameOver(e.type === "plane" ? "Uçakla çarpışarak gemini patlatın!" : "Arıyla çarpışarak gemini patlatın!");
+  gameOver(e.type === "plane"
+    ? "Uçakla çarpışarak gemin patladı!"
+    : "Arıyla çarpışarak gemin patladı!"
+  );
   return;
 }
+
 
   // GAME OVER: enemy reaches left edge (x<=0)
   if (e.x <= 0) {
