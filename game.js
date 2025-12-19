@@ -437,35 +437,27 @@ function spawnEnemyOrPlane() {
 }
 
 function spawnBeeEnemy() {
-  const el = document.createElement("div");
-  el.className = "enemy";
-  el.classList.add("fade-in");
-
-  const img = document.createElement("img");
-  img.src = beeFrames[0];
-  img.alt = "bee";
-
-  el.appendChild(img);
-  game.appendChild(el);
-
   const w = 64, h = 64;
-
-  const frameIndex = Math.floor(Math.random() * beeFrames.length);
-  img.src = beeFrames[frameIndex];
-
-  // ✅ object'in DIŞINDA hesapla
   const beeDesktopBoost = isDesktop() ? 2 : 1;
-
   const speedBoost = levelSpeedBoost();
 
-  enemies.push({
+  const el = document.createElement("div");
+  el.className = "enemy";
+
+  const img = document.createElement("img");
+  const frameIndex = Math.floor(Math.random() * beeFrames.length);
+  img.src = beeFrames[frameIndex];
+  img.alt = "bee";
+  el.appendChild(img);
+
+  const e = {
     type: "bee",
     el, img,
     x: window.innerWidth + w,
     y: rand(20, window.innerHeight - h - 20),
     vx: -clampSpeed(rand(
-      difficulty.enemySpeedMin  * beeDesktopBoost * speedBoost,
-      difficulty.enemySpeedMax  * beeDesktopBoost * speedBoost
+      difficulty.enemySpeedMin * beeDesktopBoost * speedBoost,
+      difficulty.enemySpeedMax * beeDesktopBoost * speedBoost
     )),
     w, h,
     frameIndex,
@@ -473,32 +465,16 @@ function spawnBeeEnemy() {
     hp: 1,
     shootTimer: 0,
     shootInterval: 0,
-  });
-  const e = enemies[enemies.length - 1];
-e.el.style.transform = `translate(${e.x}px, ${e.y}px)`;
-// ✅ SHIP vs ENEMY COLLISION (3-4px iç içe girince)
-const shipHit = insetRect(shipRect, 4);
-const enemyHit = insetRect(e, 4);
+  };
 
-if (rectsOverlap(shipHit, enemyHit)) {
-  // 1) Gemiyi patlat (uçak gibi)
-  spawnShipExplosion(
-    SHIP_X + SHIP_W / 2,
-    shipY + SHIP_H / 2,
-    160
-  );
+  // ✅ önce konum
+  el.style.transform = `translate(${e.x}px, ${e.y}px)`;
+  game.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("fade-in"));
 
-  // 2) Çarpan düşmanı da patlatıp kaldır
-  removeEnemyWithFade(e);
-
-  // 3) Canı sıfırla ve direkt game over
-  shipHP = 0;
-  setHpUI?.();
-  gameOver(e.type === "plane" ? "Uçakla çarpışarak gemini patlatın!" : "Arıyla çarpışarak gemini palatın!");
-  return;
+  enemies.push(e);
 }
 
-}
 
 
 function clampSpeed(v) {
@@ -532,39 +508,45 @@ function removeEnemyWithFade(e) {
 
 
 function spawnPlaneEnemy() {
-  const el = document.createElement("div");
-  el.className = "enemy plane";
-  el.classList.add("fade-in");
-
-  const img = document.createElement("img");
-  img.src = planeImgSrc;
-  img.alt = "enemy plane";
-
-  el.appendChild(img);
-  game.appendChild(el);
-
   const w = 96, h = 64;
   const speedBoost = levelSpeedBoost();
 
-  enemies.push({
+  const e = {
     type: "plane",
-    el, img,
+    el: document.createElement("div"),
+    img: document.createElement("img"),
     x: window.innerWidth + w,
     y: rand(20, window.innerHeight - h - 20),
-   vx: -clampSpeed(rand(
-  difficulty.enemySpeedMin * 0.30 * speedBoost,
-  difficulty.enemySpeedMax * 0.30 * speedBoost
-)),
+    vx: -clampSpeed(rand(
+      difficulty.enemySpeedMin * 0.30 * speedBoost,
+      difficulty.enemySpeedMax * 0.30 * speedBoost
+    )),
     w, h,
     frameIndex: 0,
     frameTimer: 0,
-    hp: 5, // 5 bullets to die
-    maxHp: 5,        // 👈 EKLE
-    smokeTimer: 0,   // 👈 EKLE
+    hp: 5,
+    maxHp: 5,
+    smokeTimer: 0,
     shootTimer: 0,
     shootInterval: rand(1400, 2400),
-  });
+  };
+
+  e.el.className = "enemy plane";
+  e.img.src = planeImgSrc;
+  e.img.alt = "enemy plane";
+  e.el.appendChild(e.img);
+
+  // ✅ DOM’a eklemeden ÖNCE konumu ver (0,0 flash biter)
+  e.el.style.transform = `translate(${e.x}px, ${e.y}px)`;
+
+  game.appendChild(e.el);
+
+  // ✅ fade-in’i bir sonraki frame’de ekle (transition düzgün çalışır)
+  requestAnimationFrame(() => e.el.classList.add("fade-in"));
+
+  enemies.push(e);
 }
+
 
 function spawnEnemyBullet(fromX, fromY, enemyWidth = 96) {
   const el = document.createElement("div");

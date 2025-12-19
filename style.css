@@ -140,19 +140,19 @@ html, body {
   box-shadow: 0 0 10px rgba(0,0,0,0.6);
   opacity: 1;
 }
+/* başlangıçta görünmesin */
+.enemy{ opacity: 0; }
 
-.enemy {
-  opacity: 0;
-  transition: opacity 300ms ease-out;
-}
-
-.enemy.fade-in {
+/* fade-in / fade-out kontrolü */
+.enemy.fade-in{
   opacity: 1;
+  transition: opacity 260ms ease-out;
+}
+.enemy.fade-out{
+  opacity: 0;
+  transition: opacity 260ms ease-out;
 }
 
-.enemy.fade-out {
-  opacity: 0;
-}
 /* --- EXPLOSION --- */
 .explosion {
   position: absolute;
@@ -253,16 +253,17 @@ html, body {
   0%   { transform: scale(0.4); opacity: 1; }
   100% { transform: scale(1.6); opacity: 0; }
 }
-.hit-shake {
-  animation: shake 0.12s linear;
+
+.enemy.plane.hit-shake img{
+  animation: shakeImg 0.12s linear;
 }
 
-@keyframes shake {
-  0%   { transform: translate(var(--x), var(--y)) translateX(0); }
-  25%  { transform: translate(var(--x), var(--y)) translateX(-3px); }
-  50%  { transform: translate(var(--x), var(--y)) translateX(3px); }
-  75%  { transform: translate(var(--x), var(--y)) translateX(-2px); }
-  100% { transform: translate(var(--x), var(--y)) translateX(0); }
+@keyframes shakeImg{
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(-3px); }
+  50%  { transform: translateX(3px); }
+  75%  { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
 }
 
 .hit-flash {
