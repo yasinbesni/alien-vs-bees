@@ -74,8 +74,8 @@ async function stopMusicFadeOut() {
 
 let gameState = GAME_STATE.MENU;
 let currentLevel = 1;
-let shipHP = 20;
-const SHIP_MAX_HP = 20;
+let shipHP = 3;
+const SHIP_MAX_HP = 3;
 
 const hpEl = document.getElementById("hp");
 function setHpUI(){ if(hpEl) hpEl.textContent = String(shipHP); }
