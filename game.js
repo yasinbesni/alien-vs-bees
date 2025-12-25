@@ -160,6 +160,10 @@ const enemyBullets = []; // {el,x,y,vx,vy,w,h}
 
 
 
+function getBulletSpeed() {
+  // 6. seviye ve sonrası: 2 kat hızlı
+  return currentLevel >= 6 ? BULLET_SPEED * 2 : BULLET_SPEED;
+}
 
 
 function isDesktop() {
@@ -174,6 +178,17 @@ function levelSpeedBoost() {
 }
 
 // -------------------- HELPERS --------------------
+function playerBulletMultiplier() {
+  // 6. seviyeden itibaren çift mermi
+  return currentLevel >= 6 ? 2 : 1;
+}
+
+function playerBulletSpeed() {
+  // 6. seviyeden itibaren 2 kat hızlı
+  return currentLevel >= 6 ? BULLET_SPEED * 2 : BULLET_SPEED;
+}
+
+
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function rand(min, max) { return Math.random() * (max - min) + min; }
 
@@ -600,17 +615,35 @@ function fireBullet() {
   if (now - lastFireAt < FIRE_COOLDOWN_MS) return;
   lastFireAt = now;
 
-  const el = document.createElement("div");
-  el.className = "bullet";
-  game.appendChild(el);
-  playShootSfx(); // ✅ mermi sesi
+  const count = playerBulletMultiplier(); // 1 veya 2
+  const speed = playerBulletSpeed();      // normal veya 2x
 
   const w = 18, h = 6;
-  const x = SHIP_X + SHIP_W - 10;
-  const y = shipY + SHIP_H / 2 - h / 2;
+  const baseX = SHIP_X + SHIP_W - 10;
+  const baseY = shipY + SHIP_H / 2 - h / 2;
 
-  bullets.push({ el, x, y, vx: BULLET_SPEED, w, h });
+  // 🔫 Mermi sayısı kadar üret
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement("div");
+    el.className = "bullet";
+    game.appendChild(el);
+
+    // çift mermi olunca hafif dikey ayrım verelim (görsel kalite)
+    const offsetY = count > 1 ? (i === 0 ? -6 : 6) : 0;
+
+    bullets.push({
+      el,
+      x: baseX,
+      y: baseY + offsetY,
+      vx: speed,
+      w,
+      h
+    });
+  }
+
+  playShootSfx(); // ses tek kez çalsın (kulak yormasın)
 }
+
 
 // -------------------- INPUT --------------------
 function setTargetFromClientY(clientY) {
